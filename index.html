@@ -111,16 +111,47 @@
   .btn-sm { padding: 7px 12px; font-size: 0.8rem; border-radius: 8px; }
   .btn-full { width: 100%; }
   .set-row {
-    display: grid;
-    grid-template-columns: 28px 1fr 1fr 36px;
-    grid-template-rows: auto auto;
-    gap: 8px;
-    margin-bottom: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
   }
-  .set-row-num { color: var(--muted); font-size: 0.8rem; font-weight: 700; text-align: center; padding-top: 22px; }
-  .set-row input { margin: 0; }
-  .set-ref { grid-column: 2 / 4; grid-row: 2; font-size: 0.72rem; color: var(--accent); padding-left: 2px; min-height: 14px; }
-  .set-ref.empty { color: var(--muted); font-style: italic; }
+  .set-row-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .set-row-num {
+    color: var(--accent);
+    font-size: 0.8rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .set-row-inputs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .set-row-inputs label { margin-bottom: 5px; }
+  .set-row-inputs input {
+    font-size: 1.3rem;
+    font-weight: 700;
+    text-align: center;
+    padding: 10px 8px;
+    border-radius: 8px;
+    margin: 0;
+    height: 52px;
+  }
+  .set-ref {
+    font-size: 0.75rem;
+    color: var(--accent);
+    margin-top: 8px;
+    text-align: center;
+  }
+  .set-ref.empty { color: var(--muted); }
   .exercise-entry {
     background: var(--surface); border: 1px solid var(--border);
     border-radius: var(--radius); padding: 14px; margin-bottom: 12px;
@@ -478,17 +509,21 @@ function addSetRow(entryId) {
   const row = document.createElement('div');
   row.className = 'set-row';
   row.innerHTML = `
-    <span class="set-row-num">${num}</span>
-    <div>
-      <label style="font-size:0.65rem;margin-bottom:3px;">Peso (kg)</label>
-      <input type="number" step="0.5" min="0" placeholder="${last ? last['Peso (kg)'] : '0'}" inputmode="decimal">
+    <div class="set-row-header">
+      <span class="set-row-num">Serie ${num}</span>
+      <button class="btn btn-danger btn-sm" style="padding:4px 10px;" onclick="this.closest('.set-row').remove();renumberSets('${entryId}')">✕</button>
     </div>
-    <div>
-      <label style="font-size:0.65rem;margin-bottom:3px;">Reps</label>
-      <input type="number" min="1" placeholder="${last ? last.Repeticiones : '0'}" inputmode="numeric">
+    <div class="set-row-inputs">
+      <div>
+        <label>Peso (kg)</label>
+        <input type="text" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" placeholder="${last ? last['Peso (kg)'] : 'ej: 30'}">
+      </div>
+      <div>
+        <label>Reps</label>
+        <input type="text" inputmode="numeric" pattern="[0-9]*" placeholder="${last ? last.Repeticiones : 'ej: 12'}">
+      </div>
     </div>
-    <button class="btn btn-danger btn-sm" style="padding:6px 8px;align-self:end;margin-bottom:2px;" onclick="this.parentElement.remove();renumberSets('${entryId}')">✕</button>
-    <span class="${last ? 'set-ref' : 'set-ref empty'}">${last ? `↑ última: ${last['Peso (kg)']} kg × ${last.Repeticiones} reps` : ''}</span>
+    <div class="${last ? 'set-ref' : 'set-ref empty'}">${last ? `↑ última vez: ${last['Peso (kg)']} kg × ${last.Repeticiones} reps` : 'Sin datos previos para esta serie'}</div>
   `;
   container.appendChild(row);
 }
@@ -498,12 +533,12 @@ function renumberSets(entryId) {
   const entryEl = document.getElementById(entryId);
   const lastSeries = entryEl?.dataset.lastSeries ? JSON.parse(entryEl.dataset.lastSeries) : [];
   rows.forEach((row, i) => {
-    row.querySelector('.set-row-num').textContent = i + 1;
+    row.querySelector('.set-row-num').textContent = `Serie ${i + 1}`;
     const ref = row.querySelector('.set-ref');
     const last = lastSeries[i];
     if (ref) {
       ref.className = last ? 'set-ref' : 'set-ref empty';
-      ref.textContent = last ? `↑ última: ${last['Peso (kg)']} kg × ${last.Repeticiones} reps` : '';
+      ref.textContent = last ? `↑ última vez: ${last['Peso (kg)']} kg × ${last.Repeticiones} reps` : 'Sin datos previos para esta serie';
     }
   });
 }
@@ -518,17 +553,21 @@ function copyLastSession(entryId) {
     const row = document.createElement('div');
     row.className = 'set-row';
     row.innerHTML = `
-      <span class="set-row-num">${i+1}</span>
-      <div>
-        <label style="font-size:0.65rem;margin-bottom:3px;">Peso (kg)</label>
-        <input type="number" step="0.5" min="0" value="${s['Peso (kg)']}" inputmode="decimal">
+      <div class="set-row-header">
+        <span class="set-row-num">Serie ${i+1}</span>
+        <button class="btn btn-danger btn-sm" style="padding:4px 10px;" onclick="this.closest('.set-row').remove();renumberSets('${entryId}')">✕</button>
       </div>
-      <div>
-        <label style="font-size:0.65rem;margin-bottom:3px;">Reps</label>
-        <input type="number" min="1" value="${s.Repeticiones}" inputmode="numeric">
+      <div class="set-row-inputs">
+        <div>
+          <label>Peso (kg)</label>
+          <input type="text" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" value="${s['Peso (kg)']}">
+        </div>
+        <div>
+          <label>Reps</label>
+          <input type="text" inputmode="numeric" pattern="[0-9]*" value="${s.Repeticiones}">
+        </div>
       </div>
-      <button class="btn btn-danger btn-sm" style="padding:6px 8px;align-self:end;margin-bottom:2px;" onclick="this.parentElement.remove();renumberSets('${entryId}')">✕</button>
-      <span class="set-ref">↑ última: ${s['Peso (kg)']} kg × ${s.Repeticiones} reps</span>
+      <div class="set-ref">↑ última vez: ${s['Peso (kg)']} kg × ${s.Repeticiones} reps</div>
     `;
     container.appendChild(row);
   });
@@ -544,8 +583,10 @@ async function saveSession() {
     const ejercicio = entryEl.dataset.ejercicio;
     entryEl.querySelectorAll('.set-row').forEach((row, i) => {
       const inputs = row.querySelectorAll('input');
-      const peso = parseFloat(inputs[0].value || inputs[0].placeholder);
-      const reps = parseInt(inputs[1].value || inputs[1].placeholder);
+      const pesoStr = (inputs[0].value || inputs[0].placeholder || '').replace(',', '.');
+      const repsStr = inputs[1].value || inputs[1].placeholder || '';
+      const peso = parseFloat(pesoStr);
+      const reps = parseInt(repsStr);
       if (!isNaN(peso) && !isNaN(reps)) {
         newRecords.push({ Fecha: fecha, 'Tipo de entrenamiento': tipo, Ejercicio: ejercicio, Serie: i+1, 'Peso (kg)': peso, Repeticiones: reps, Notas: '' });
       }
