@@ -256,6 +256,7 @@ function showPage(name, btn) {
   btn.classList.add('active');
   if (name === 'home') renderHome();
   if (name === 'progress') renderProgressSelects();
+  if (name === 'add') loadBaseData(); // preload so last session is ready
 }
 
 // ─── HELPERS ────────────────────────────────────────────
@@ -430,11 +431,12 @@ function getLastSeriesFor(ejercicio) {
   return rows.filter(r => r.Fecha === lastDate).sort((a,b) => a.Serie - b.Serie);
 }
 
-function addExerciseEntry() {
+async function addExerciseEntry() {
   const sel = $('add-exercise-select');
   const ex = sel.value;
   if (!ex) { showToast('Selecciona un ejercicio'); return; }
 
+  await loadBaseData();
   const lastSeries = getLastSeriesFor(ex);
   const id = 'entry-' + Date.now();
   const div = document.createElement('div');
