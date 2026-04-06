@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Gym Tracker 💪</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Gym 💪">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
   :root {
     --bg: #0f0f13;
@@ -573,6 +578,10 @@ function showToast(msg) {
 const today = new Date().toISOString().split('T')[0];
 $('add-date').value = today;
 loadBaseData().then(renderHome);
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/gym-tracker/sw.js');
+}
 </script>
 </body>
 </html>
