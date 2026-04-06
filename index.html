@@ -189,6 +189,13 @@
   .chip-cuad { background: rgba(52,211,153,0.15); color: #34d399; }
   .chip-tren { background: rgba(167,139,250,0.15); color: #a78bfa; }
   .divider { height: 1px; background: var(--border); margin: 14px 0; }
+  .prog-badge {
+    font-size: 0.72rem; font-weight: 700;
+    padding: 3px 8px; border-radius: 100px;
+  }
+  .prog-up { background: rgba(52,211,153,0.15); color: #34d399; }
+  .prog-down { background: rgba(248,113,113,0.15); color: #f87171; }
+  .prog-eq { background: rgba(139,139,158,0.15); color: var(--muted); }
   .loading { text-align: center; color: var(--muted); padding: 40px; font-size: 0.9rem; }
   .sync-note { font-size: 0.72rem; color: var(--muted); text-align: center; padding: 8px; }
   .sync-note a { color: var(--accent); text-decoration: none; }
@@ -331,25 +338,60 @@ async function renderHome() {
     <div class="stat-box"><div class="stat-val">${totalEx}</div><div class="stat-lbl">Series total</div></div>
   `;
 
+  // Build a lookup: for each exercise, get max weight per date in order
+  const byEx_all = {};
+  all.forEach(r => {
+    if (!byEx_all[r.Ejercicio]) byEx_all[r.Ejercicio] = {};
+    if (!byEx_all[r.Ejercicio][r.Fecha] || byEx_all[r.Ejercicio][r.Fecha] < r['Peso (kg)']) {
+      byEx_all[r.Ejercicio][r.Fecha] = r['Peso (kg)'];
+    }
+  });
+
+  function getProgressVsPrev(ex, date) {
+    const exDates = Object.keys(byEx_all[ex] || {}).sort();
+    const idx = exDates.indexOf(date);
+    if (idx <= 0) return null;
+    const prev = byEx_all[ex][exDates[idx - 1]];
+    const curr = byEx_all[ex][date];
+    const diff = curr - prev;
+    return { diff, prev, curr };
+  }
+
   const el = $('recent-sessions');
   el.innerHTML = dates.map(date => {
     const rows = byDate[date];
-    // Group by ejercicio
     const byEx = {};
     rows.forEach(r => {
       if (!byEx[r.Ejercicio]) byEx[r.Ejercicio] = {tipo: r['Tipo de entrenamiento'], series: []};
       byEx[r.Ejercicio].series.push(r);
     });
     const exHTML = Object.entries(byEx).map(([ex, data], i) => {
-      const sets = data.series.map(s => `
+      const sorted = data.series.sort((a,b) => a.Serie - b.Serie);
+      const sets = sorted.map(s => `
         <div class="set-pill">
           <div class="set-num">Serie ${s.Serie}</div>
           <div class="set-main">${s['Peso (kg)']} kg</div>
           <div class="set-sub">× ${s.Repeticiones} reps</div>
         </div>`).join('');
+
+      const prog = getProgressVsPrev(ex, date);
+      let progHTML = '';
+      if (prog) {
+        if (prog.diff > 0) {
+          progHTML = `<span class="prog-badge prog-up">↑ +${prog.diff} kg</span>`;
+        } else if (prog.diff < 0) {
+          progHTML = `<span class="prog-badge prog-down">↓ ${prog.diff} kg</span>`;
+        } else {
+          progHTML = `<span class="prog-badge prog-eq">= mismo peso</span>`;
+        }
+      }
+
       return `${i > 0 ? '<div class="divider"></div>' : ''}
         <div class="exercise-block">
-          <div class="exercise-tipo">${tipoChip(data.tipo)}</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+            <div>${tipoChip(data.tipo)}</div>
+            ${progHTML}
+          </div>
           <div class="exercise-name">${ex}</div>
           <div class="sets-grid">${sets}</div>
         </div>`;
@@ -491,11 +533,17 @@ async function addExerciseEntry() {
     <div class="sets-container" id="sets-${id}"></div>
     <div style="display:flex;gap:8px;margin-top:8px;">
       <button class="btn btn-secondary btn-sm" onclick="addSetRow('${id}')">+ Serie</button>
-      ${lastSeries ? `<button class="btn btn-secondary btn-sm" onclick="copyLastSession('${id}')">📋 Copiar última</button>` : ''}
     </div>
   `;
   $('exercise-entries').appendChild(div);
-  addSetRow(id);
+
+  // Auto-populate all sets from last session, or 1 empty set if no history
+  if (lastSeries && lastSeries.length) {
+    lastSeries.forEach(() => addSetRow(id));
+  } else {
+    addSetRow(id);
+  }
+
   sel.value = '';
 }
 
