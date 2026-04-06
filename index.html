@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Gym Tracker 💪</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f0f13;
+    --surface: #1a1a24;
+    --card: #22222f;
+    --accent: #a78bfa;
+    --accent2: #f472b6;
+    --accent3: #34d399;
+    --text: #f1f1f5;
+    --muted: #8b8b9e;
+    --border: #2e2e3e;
+    --danger: #f87171;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    min-height: 100vh;
+    padding-bottom: 80px;
+  }
+  nav {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  nav h1 { font-size: 1.1rem; font-weight: 700; color: var(--accent); }
+  .tabbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    z-index: 100;
+  }
+  .tabbar button {
+    flex: 1; padding: 12px 4px 10px;
+    background: none; border: none; color: var(--muted);
+    font-size: 0.65rem; font-weight: 600; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    transition: color .15s; text-transform: uppercase; letter-spacing: .5px;
+  }
+  .tabbar button .icon { font-size: 1.4rem; }
+  .tabbar button.active { color: var(--accent); }
+  .page { display: none; padding: 16px; }
+  .page.active { display: block; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .card-title {
+    font-size: 0.75rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1px;
+    color: var(--muted); margin-bottom: 12px;
+  }
+  .session-date { font-size: 0.9rem; font-weight: 700; color: var(--accent); margin-bottom: 10px; }
+  .exercise-block { margin-bottom: 12px; }
+  .exercise-name { font-size: 0.95rem; font-weight: 600; margin-bottom: 6px; }
+  .exercise-tipo { font-size: 0.7rem; color: var(--muted); font-weight: 500; margin-bottom: 4px; }
+  .sets-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 6px; }
+  .set-pill {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 8px; font-size: 0.78rem; text-align: center;
+  }
+  .set-pill .set-num { color: var(--muted); font-size: 0.65rem; }
+  .set-pill .set-main { font-weight: 700; color: var(--text); }
+  .set-pill .set-sub { color: var(--accent3); font-size: 0.72rem; }
+  .exercise-select-wrap { margin-bottom: 16px; }
+  select, input[type=text], input[type=number], input[type=date] {
+    width: 100%; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; color: var(--text); font-size: 0.95rem;
+    outline: none; -webkit-appearance: none; appearance: none;
+  }
+  select:focus, input:focus { border-color: var(--accent); }
+  label { display: block; font-size: 0.75rem; font-weight: 700; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .5px; }
+  .add-section { margin-bottom: 18px; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 12px 18px; border-radius: 10px; border: none;
+    font-size: 0.9rem; font-weight: 700; cursor: pointer;
+    transition: opacity .15s, transform .1s;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-secondary { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+  .btn-danger { background: transparent; border: 1px solid var(--danger); color: var(--danger); }
+  .btn-success { background: var(--accent3); color: #000; }
+  .btn-sm { padding: 7px 12px; font-size: 0.8rem; border-radius: 8px; }
+  .btn-full { width: 100%; }
+  .set-row {
+    display: grid;
+    grid-template-columns: 28px 1fr 1fr 36px;
+    grid-template-rows: auto auto;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .set-row-num { color: var(--muted); font-size: 0.8rem; font-weight: 700; text-align: center; padding-top: 22px; }
+  .set-row input { margin: 0; }
+  .set-ref { grid-column: 2 / 4; grid-row: 2; font-size: 0.72rem; color: var(--accent); padding-left: 2px; min-height: 14px; }
+  .set-ref.empty { color: var(--muted); font-style: italic; }
+  .exercise-entry {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px; margin-bottom: 12px;
+  }
+  .exercise-entry-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .exercise-entry-name { font-weight: 700; font-size: 0.95rem; }
+  .last-session-ref {
+    background: rgba(167,139,250,0.08); border: 1px solid rgba(167,139,250,0.2);
+    border-radius: 8px; padding: 8px 10px; margin-bottom: 10px;
+    font-size: 0.75rem; color: var(--muted);
+  }
+  .last-session-ref strong { color: var(--accent); }
+  .add-exercise-bar { display: flex; gap: 8px; margin-bottom: 16px; }
+  .add-exercise-bar select { flex: 1; margin: 0; }
+  .chart-wrap { position: relative; height: 220px; }
+  .stats-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .stat-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 8px; text-align: center;
+  }
+  .stat-val { font-size: 1.2rem; font-weight: 800; color: var(--accent); }
+  .stat-lbl { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-top: 2px; }
+  #toast {
+    position: fixed; bottom: 90px; left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--accent3); color: #000;
+    padding: 10px 22px; border-radius: 100px;
+    font-weight: 700; font-size: 0.85rem;
+    opacity: 0; transition: opacity .2s, transform .2s;
+    pointer-events: none; white-space: nowrap;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .chip { display: inline-block; padding: 3px 10px; border-radius: 100px; font-size: 0.7rem; font-weight: 700; margin-right: 4px; }
+  .chip-femoral { background: rgba(244,114,182,0.15); color: #f472b6; }
+  .chip-cuad { background: rgba(52,211,153,0.15); color: #34d399; }
+  .chip-tren { background: rgba(167,139,250,0.15); color: #a78bfa; }
+  .divider { height: 1px; background: var(--border); margin: 14px 0; }
+  .loading { text-align: center; color: var(--muted); padding: 40px; font-size: 0.9rem; }
+  .sync-note { font-size: 0.72rem; color: var(--muted); text-align: center; padding: 8px; }
+  .sync-note a { color: var(--accent); text-decoration: none; }
+  @media (min-width: 600px) { .page { max-width: 600px; margin: 0 auto; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <span>💪</span>
+  <h1>Gym Tracker — Julieta</h1>
+</nav>
+
+<div id="page-home" class="page active">
+  <div id="home-stats" class="stats-row"></div>
+  <div class="card-title" style="padding: 0 0 8px 2px;">Últimas sesiones</div>
+  <div id="recent-sessions"><div class="loading">Cargando...</div></div>
+</div>
+
+<div id="page-progress" class="page">
+  <div class="exercise-select-wrap">
+    <label>Ejercicio</label>
+    <select id="progress-exercise" onchange="loadProgress()">
+      <option value="">Selecciona un ejercicio...</option>
+    </select>
+  </div>
+  <div id="progress-content"></div>
+</div>
+
+<div id="page-add" class="page">
+  <div class="add-section">
+    <label>Fecha</label>
+    <input type="date" id="add-date">
+  </div>
+  <div class="add-section">
+    <label>Tipo de entrenamiento</label>
+    <select id="add-tipo" onchange="updateExerciseOptions()">
+      <option value="">Selecciona...</option>
+      <option>Pierna – Femoral</option>
+      <option>Pierna – Cuádriceps</option>
+      <option>Tren Superior</option>
+    </select>
+  </div>
+  <div class="add-section">
+    <label>Ejercicios</label>
+    <div class="add-exercise-bar">
+      <select id="add-exercise-select"><option value="">Añadir ejercicio...</option></select>
+      <button class="btn btn-primary btn-sm" onclick="addExerciseEntry()">+ Añadir</button>
+    </div>
+    <div id="exercise-entries"></div>
+  </div>
+  <button class="btn btn-success btn-full" style="margin-top:8px;" onclick="saveSession()">✓ Guardar sesión</button>
+  <p class="sync-note" style="margin-top:12px;">Los datos se guardan en tu dispositivo. Para exportar al Excel, usa <a href="#" onclick="exportJSON()">Descargar datos</a>.</p>
+</div>
+
+<div class="tabbar">
+  <button class="active" onclick="showPage('home',this)"><span class="icon">🏠</span>Inicio</button>
+  <button onclick="showPage('progress',this)"><span class="icon">📈</span>Progreso</button>
+  <button onclick="showPage('add',this)"><span class="icon">➕</span>Añadir</button>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+const EXERCISES_BY_TYPE = {
+  'Pierna – Femoral': ['Femoral máquina','Peso muerto Smith','Hip thrust','Búlgaras en Smith','Zancadas'],
+  'Pierna – Cuádriceps': ['Sentadilla Smith','Prensa','Prensa unilateral (máquina 53kg)','Extensión Cuádriceps en Máquina','Hack squat inclinada (pequeña)','Gemelos en prensa'],
+  'Tren Superior': ['Jalon al pecho','Apertura posterior en Máquina','Dominadas en Máquina','Remo Sentado en Máquina','Tríceps en Polea Doble','Press Pecho en Máquina','Press pecho inclinado hammer strenght','Curl Bíceps en máquina','Deltoide posterior en Máquina'],
+};
+
+// ─── DATA LAYER ──────────────────────────────────────────
+// allData = base historical records from data.json + local additions
+let baseData = [];
+let localData = JSON.parse(localStorage.getItem('gym_local') || '[]');
+
+async function loadBaseData() {
+  if (baseData.length) return;
+  const res = await fetch('data.json');
+  baseData = await res.json();
+}
+
+function allRecords() { return [...baseData, ...localData]; }
+
+function saveLocal(records) {
+  localData = [...localData, ...records];
+  localStorage.setItem('gym_local', JSON.stringify(localData));
+}
+
+// ─── NAV ────────────────────────────────────────────────
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tabbar button').forEach(b => b.classList.remove('active'));
+  $(`page-${name}`).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'home') renderHome();
+  if (name === 'progress') renderProgressSelects();
+}
+
+// ─── HELPERS ────────────────────────────────────────────
+function tipoChip(tipo) {
+  if (!tipo) return '';
+  const t = (tipo||'').toLowerCase();
+  let cls = 'chip-tren';
+  if (t.includes('femoral')) cls = 'chip-femoral';
+  else if (t.includes('cuád') || t.includes('cuad')) cls = 'chip-cuad';
+  return `<span class="chip ${cls}">${tipo}</span>`;
+}
+
+function fmtDate(d) {
+  return new Date(d + 'T12:00:00').toLocaleDateString('es-ES', {weekday:'long', day:'numeric', month:'long'});
+}
+function fmtDateShort(d) {
+  return new Date(d + 'T12:00:00').toLocaleDateString('es-ES', {day:'numeric', month:'short'});
+}
+
+// ─── HOME ────────────────────────────────────────────────
+async function renderHome() {
+  await loadBaseData();
+  const all = allRecords();
+
+  // Group by date
+  const byDate = {};
+  all.forEach(r => {
+    if (!byDate[r.Fecha]) byDate[r.Fecha] = [];
+    byDate[r.Fecha].push(r);
+  });
+
+  const dates = Object.keys(byDate).sort().reverse().slice(0, 10);
+
+  // Stats
+  const totalSess = Object.keys(byDate).length;
+  const allEx = new Set(all.map(r => r.Ejercicio));
+  const totalEx = all.length;
+  $('home-stats').innerHTML = `
+    <div class="stat-box"><div class="stat-val">${totalSess}</div><div class="stat-lbl">Sesiones</div></div>
+    <div class="stat-box"><div class="stat-val">${allEx.size}</div><div class="stat-lbl">Ejercicios</div></div>
+    <div class="stat-box"><div class="stat-val">${totalEx}</div><div class="stat-lbl">Series total</div></div>
+  `;
+
+  const el = $('recent-sessions');
+  el.innerHTML = dates.map(date => {
+    const rows = byDate[date];
+    // Group by ejercicio
+    const byEx = {};
+    rows.forEach(r => {
+      if (!byEx[r.Ejercicio]) byEx[r.Ejercicio] = {tipo: r['Tipo de entrenamiento'], series: []};
+      byEx[r.Ejercicio].series.push(r);
+    });
+    const exHTML = Object.entries(byEx).map(([ex, data], i) => {
+      const sets = data.series.map(s => `
+        <div class="set-pill">
+          <div class="set-num">Serie ${s.Serie}</div>
+          <div class="set-main">${s['Peso (kg)']} kg</div>
+          <div class="set-sub">× ${s.Repeticiones} reps</div>
+        </div>`).join('');
+      return `${i > 0 ? '<div class="divider"></div>' : ''}
+        <div class="exercise-block">
+          <div class="exercise-tipo">${tipoChip(data.tipo)}</div>
+          <div class="exercise-name">${ex}</div>
+          <div class="sets-grid">${sets}</div>
+        </div>`;
+    }).join('');
+    return `<div class="card"><div class="session-date">${fmtDate(date)}</div>${exHTML}</div>`;
+  }).join('');
+}
+
+// ─── PROGRESS ────────────────────────────────────────────
+async function renderProgressSelects() {
+  await loadBaseData();
+  const all = allRecords();
+  const exercises = [...new Set(all.map(r => r.Ejercicio).filter(Boolean))].sort();
+  const sel = $('progress-exercise');
+  if (sel.options.length > 1) return; // already populated
+  exercises.forEach(ex => {
+    const o = document.createElement('option');
+    o.value = ex; o.textContent = ex;
+    sel.appendChild(o);
+  });
+}
+
+function loadProgress() {
+  const ex = $('progress-exercise').value;
+  const container = $('progress-content');
+  if (!ex) { container.innerHTML = ''; return; }
+
+  const all = allRecords();
+  const rows = all.filter(r => r.Ejercicio && r.Ejercicio.toLowerCase() === ex.toLowerCase());
+  if (!rows.length) { container.innerHTML = '<div class="card loading">Sin datos.</div>'; return; }
+
+  // Group by date
+  const byDate = {};
+  rows.forEach(r => {
+    if (!byDate[r.Fecha]) byDate[r.Fecha] = [];
+    byDate[r.Fecha].push(r);
+  });
+  const dates = Object.keys(byDate).sort();
+  const maxWeights = dates.map(d => Math.max(...byDate[d].map(r => r['Peso (kg)'])));
+  const volumes = dates.map(d => byDate[d].reduce((s,r) => s + r['Peso (kg)'] * r.Repeticiones, 0));
+
+  const maxW = Math.max(...maxWeights);
+  const lastW = maxWeights[maxWeights.length - 1];
+
+  // Last session series
+  const lastDate = dates[dates.length - 1];
+  const lastSeries = byDate[lastDate].sort((a,b) => a.Serie - b.Serie);
+
+  container.innerHTML = `
+    <div class="stats-row">
+      <div class="stat-box"><div class="stat-val">${maxW} kg</div><div class="stat-lbl">Máx. peso</div></div>
+      <div class="stat-box"><div class="stat-val">${lastW} kg</div><div class="stat-lbl">Última ses.</div></div>
+      <div class="stat-box"><div class="stat-val">${dates.length}</div><div class="stat-lbl">Sesiones</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Peso máximo por sesión (kg)</div>
+      <div class="chart-wrap"><canvas id="chart-weight"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Volumen por sesión (kg × reps)</div>
+      <div class="chart-wrap"><canvas id="chart-volume"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Última sesión — ${fmtDateShort(lastDate)}</div>
+      <div class="sets-grid">${lastSeries.map(s => `
+        <div class="set-pill">
+          <div class="set-num">Serie ${s.Serie}</div>
+          <div class="set-main">${s['Peso (kg)']} kg</div>
+          <div class="set-sub">× ${s.Repeticiones} reps</div>
+        </div>`).join('')}
+      </div>
+    </div>
+  `;
+
+  const labels = dates.map(fmtDateShort);
+  const chartOpts = {
+    type: 'line',
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#8b8b9e', maxTicksLimit: 6, font: { size: 10 } }, grid: { color: '#2e2e3e' } },
+        y: { ticks: { color: '#8b8b9e', font: { size: 10 } }, grid: { color: '#2e2e3e' } }
+      },
+      elements: { point: { radius: 3 }, line: { tension: 0.3 } }
+    }
+  };
+
+  new Chart($('chart-weight'), { ...chartOpts, data: { labels, datasets: [{ data: maxWeights, borderColor: '#a78bfa', backgroundColor: 'rgba(167,139,250,0.1)', fill: true, borderWidth: 2 }] } });
+  new Chart($('chart-volume'), { ...chartOpts, data: { labels, datasets: [{ data: volumes, borderColor: '#f472b6', backgroundColor: 'rgba(244,114,182,0.1)', fill: true, borderWidth: 2 }] } });
+}
+
+// ─── ADD SESSION ─────────────────────────────────────────
+function updateExerciseOptions() {
+  const tipo = $('add-tipo').value;
+  const sel = $('add-exercise-select');
+  sel.innerHTML = '<option value="">Añadir ejercicio...</option>';
+  (EXERCISES_BY_TYPE[tipo] || []).forEach(ex => {
+    const o = document.createElement('option');
+    o.value = ex; o.textContent = ex;
+    sel.appendChild(o);
+  });
+}
+
+function getLastSeriesFor(ejercicio) {
+  const all = allRecords();
+  const rows = all.filter(r => r.Ejercicio && r.Ejercicio.toLowerCase() === ejercicio.toLowerCase());
+  if (!rows.length) return null;
+  const lastDate = rows.map(r => r.Fecha).sort().pop();
+  return rows.filter(r => r.Fecha === lastDate).sort((a,b) => a.Serie - b.Serie);
+}
+
+function addExerciseEntry() {
+  const sel = $('add-exercise-select');
+  const ex = sel.value;
+  if (!ex) { showToast('Selecciona un ejercicio'); return; }
+
+  const lastSeries = getLastSeriesFor(ex);
+  const id = 'entry-' + Date.now();
+  const div = document.createElement('div');
+  div.className = 'exercise-entry';
+  div.id = id;
+  div.dataset.ejercicio = ex;
+  if (lastSeries) div.dataset.lastSeries = JSON.stringify(lastSeries);
+
+  let refText = 'Sin sesiones previas';
+  if (lastSeries) {
+    const dateStr = fmtDateShort(lastSeries[0].Fecha);
+    refText = `<strong>Última sesión:</strong> ${dateStr}`;
+  }
+
+  div.innerHTML = `
+    <div class="exercise-entry-header">
+      <span class="exercise-entry-name">${ex}</span>
+      <button class="btn btn-danger btn-sm" onclick="document.getElementById('${id}').remove()">✕</button>
+    </div>
+    <div class="last-session-ref">${refText}</div>
+    <div class="sets-container" id="sets-${id}"></div>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="btn btn-secondary btn-sm" onclick="addSetRow('${id}')">+ Serie</button>
+      ${lastSeries ? `<button class="btn btn-secondary btn-sm" onclick="copyLastSession('${id}')">📋 Copiar última</button>` : ''}
+    </div>
+  `;
+  $('exercise-entries').appendChild(div);
+  addSetRow(id);
+  sel.value = '';
+}
+
+function addSetRow(entryId) {
+  const container = $(`sets-${entryId}`);
+  const num = container.children.length + 1;
+  const entryEl = document.getElementById(entryId);
+  const lastSeries = entryEl?.dataset.lastSeries ? JSON.parse(entryEl.dataset.lastSeries) : [];
+  const last = lastSeries[num - 1] || null;
+
+  const row = document.createElement('div');
+  row.className = 'set-row';
+  row.innerHTML = `
+    <span class="set-row-num">${num}</span>
+    <div>
+      <label style="font-size:0.65rem;margin-bottom:3px;">Peso (kg)</label>
+      <input type="number" step="0.5" min="0" placeholder="${last ? last['Peso (kg)'] : '0'}" inputmode="decimal">
+    </div>
+    <div>
+      <label style="font-size:0.65rem;margin-bottom:3px;">Reps</label>
+      <input type="number" min="1" placeholder="${last ? last.Repeticiones : '0'}" inputmode="numeric">
+    </div>
+    <button class="btn btn-danger btn-sm" style="padding:6px 8px;align-self:end;margin-bottom:2px;" onclick="this.parentElement.remove();renumberSets('${entryId}')">✕</button>
+    <span class="${last ? 'set-ref' : 'set-ref empty'}">${last ? `↑ última: ${last['Peso (kg)']} kg × ${last.Repeticiones} reps` : ''}</span>
+  `;
+  container.appendChild(row);
+}
+
+function renumberSets(entryId) {
+  const rows = $(`sets-${entryId}`).querySelectorAll('.set-row');
+  const entryEl = document.getElementById(entryId);
+  const lastSeries = entryEl?.dataset.lastSeries ? JSON.parse(entryEl.dataset.lastSeries) : [];
+  rows.forEach((row, i) => {
+    row.querySelector('.set-row-num').textContent = i + 1;
+    const ref = row.querySelector('.set-ref');
+    const last = lastSeries[i];
+    if (ref) {
+      ref.className = last ? 'set-ref' : 'set-ref empty';
+      ref.textContent = last ? `↑ última: ${last['Peso (kg)']} kg × ${last.Repeticiones} reps` : '';
+    }
+  });
+}
+
+function copyLastSession(entryId) {
+  const entryEl = document.getElementById(entryId);
+  if (!entryEl?.dataset.lastSeries) { showToast('Sin sesión previa'); return; }
+  const lastSeries = JSON.parse(entryEl.dataset.lastSeries);
+  const container = $(`sets-${entryId}`);
+  container.innerHTML = '';
+  lastSeries.forEach((s, i) => {
+    const row = document.createElement('div');
+    row.className = 'set-row';
+    row.innerHTML = `
+      <span class="set-row-num">${i+1}</span>
+      <div>
+        <label style="font-size:0.65rem;margin-bottom:3px;">Peso (kg)</label>
+        <input type="number" step="0.5" min="0" value="${s['Peso (kg)']}" inputmode="decimal">
+      </div>
+      <div>
+        <label style="font-size:0.65rem;margin-bottom:3px;">Reps</label>
+        <input type="number" min="1" value="${s.Repeticiones}" inputmode="numeric">
+      </div>
+      <button class="btn btn-danger btn-sm" style="padding:6px 8px;align-self:end;margin-bottom:2px;" onclick="this.parentElement.remove();renumberSets('${entryId}')">✕</button>
+      <span class="set-ref">↑ última: ${s['Peso (kg)']} kg × ${s.Repeticiones} reps</span>
+    `;
+    container.appendChild(row);
+  });
+}
+
+async function saveSession() {
+  const fecha = $('add-date').value;
+  const tipo = $('add-tipo').value;
+  if (!fecha || !tipo) { showToast('Completa la fecha y el tipo'); return; }
+
+  const newRecords = [];
+  document.querySelectorAll('.exercise-entry').forEach(entryEl => {
+    const ejercicio = entryEl.dataset.ejercicio;
+    entryEl.querySelectorAll('.set-row').forEach((row, i) => {
+      const inputs = row.querySelectorAll('input');
+      const peso = parseFloat(inputs[0].value || inputs[0].placeholder);
+      const reps = parseInt(inputs[1].value || inputs[1].placeholder);
+      if (!isNaN(peso) && !isNaN(reps)) {
+        newRecords.push({ Fecha: fecha, 'Tipo de entrenamiento': tipo, Ejercicio: ejercicio, Serie: i+1, 'Peso (kg)': peso, Repeticiones: reps, Notas: '' });
+      }
+    });
+  });
+
+  if (!newRecords.length) { showToast('Añade al menos un ejercicio con series'); return; }
+
+  saveLocal(newRecords);
+  showToast(`✓ Guardado ${newRecords.length} series`);
+  $('exercise-entries').innerHTML = '';
+  await loadBaseData(); // ensure base is loaded for next getLastSeriesFor
+}
+
+function exportJSON() {
+  const all = allRecords();
+  const blob = new Blob([JSON.stringify(all, null, 2)], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'gym_data_export.json';
+  a.click();
+}
+
+function showToast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ─── INIT ────────────────────────────────────────────────
+const today = new Date().toISOString().split('T')[0];
+$('add-date').value = today;
+loadBaseData().then(renderHome);
+</script>
+</body>
+</html>
