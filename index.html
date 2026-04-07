@@ -165,7 +165,7 @@
   }
   .last-session-ref strong { color: var(--accent); }
   .add-exercise-bar { display: flex; gap: 8px; margin-bottom: 16px; }
-  .add-exercise-bar select { flex: 1; margin: 0; }
+  .add-exercise-bar select, .add-exercise-bar input[type=text] { flex: 1; margin: 0; }
   .chart-wrap { position: relative; height: 220px; }
   .stats-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 14px; }
   .stat-box {
@@ -232,17 +232,14 @@
   </div>
   <div class="add-section">
     <label>Tipo de entrenamiento</label>
-    <select id="add-tipo" onchange="updateExerciseOptions()">
-      <option value="">Selecciona...</option>
-      <option>Pierna – Femoral</option>
-      <option>Pierna – Cuádriceps</option>
-      <option>Tren Superior</option>
-    </select>
+    <input type="text" id="add-tipo" list="tipo-list" placeholder="Pierna – Femoral, Tren Superior..." oninput="updateExerciseSuggestions()" autocomplete="off">
+    <datalist id="tipo-list"></datalist>
   </div>
   <div class="add-section">
     <label>Ejercicios</label>
     <div class="add-exercise-bar">
-      <select id="add-exercise-select"><option value="">Añadir ejercicio...</option></select>
+      <input type="text" id="add-exercise-input" list="exercise-list" placeholder="Nombre del ejercicio..." autocomplete="off">
+      <datalist id="exercise-list"></datalist>
       <button class="btn btn-primary btn-sm" onclick="addExerciseEntry()">+ Añadir</button>
     </div>
     <div id="exercise-entries"></div>
@@ -262,11 +259,68 @@
 <script>
 const $ = id => document.getElementById(id);
 
-const EXERCISES_BY_TYPE = {
+const DEFAULT_EXERCISES = {
   'Pierna – Femoral': ['Femoral máquina','Peso muerto Smith','Hip thrust','Búlgaras en Smith','Zancadas'],
   'Pierna – Cuádriceps': ['Sentadilla Smith','Prensa','Prensa unilateral (máquina 53kg)','Extensión Cuádriceps en Máquina','Hack squat inclinada (pequeña)','Gemelos en prensa'],
   'Tren Superior': ['Jalon al pecho','Apertura posterior en Máquina','Dominadas en Máquina','Remo Sentado en Máquina','Tríceps en Polea Doble','Press Pecho en Máquina','Press pecho inclinado hammer strenght','Curl Bíceps en máquina','Deltoide posterior en Máquina'],
 };
+
+function getAllTypes() {
+  const defaults = Object.keys(DEFAULT_EXERCISES);
+  const custom = JSON.parse(localStorage.getItem('gym_custom_types') || '[]');
+  return [...new Set([...defaults, ...custom])];
+}
+
+function getExercisesForType(tipo) {
+  const defaults = DEFAULT_EXERCISES[tipo] || [];
+  const customAll = JSON.parse(localStorage.getItem('gym_custom_exercises') || '{}');
+  const custom = customAll[tipo] || [];
+  return [...new Set([...defaults, ...custom])];
+}
+
+function saveCustomType(tipo) {
+  if (!tipo || Object.keys(DEFAULT_EXERCISES).includes(tipo)) return;
+  const types = JSON.parse(localStorage.getItem('gym_custom_types') || '[]');
+  if (!types.includes(tipo)) {
+    types.push(tipo);
+    localStorage.setItem('gym_custom_types', JSON.stringify(types));
+  }
+}
+
+function saveCustomExercise(tipo, ejercicio) {
+  if (!tipo || !ejercicio) return;
+  if ((DEFAULT_EXERCISES[tipo] || []).includes(ejercicio)) return;
+  const all = JSON.parse(localStorage.getItem('gym_custom_exercises') || '{}');
+  if (!all[tipo]) all[tipo] = [];
+  if (!all[tipo].includes(ejercicio)) {
+    all[tipo].push(ejercicio);
+    localStorage.setItem('gym_custom_exercises', JSON.stringify(all));
+  }
+}
+
+function updateTipoSuggestions() {
+  const list = document.getElementById('tipo-list');
+  if (!list) return;
+  list.innerHTML = '';
+  getAllTypes().forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t;
+    list.appendChild(opt);
+  });
+}
+
+function updateExerciseSuggestions() {
+  const tipo = ($('add-tipo') || {}).value?.trim() || '';
+  const list = document.getElementById('exercise-list');
+  if (!list) return;
+  list.innerHTML = '';
+  if (!tipo) return;
+  getExercisesForType(tipo).forEach(ex => {
+    const opt = document.createElement('option');
+    opt.value = ex;
+    list.appendChild(opt);
+  });
+}
 
 // ─── SUPABASE CONFIG ─────────────────────────────────────
 const SB_URL = 'https://xkrudevefbyghwlgsuux.supabase.co';
@@ -337,7 +391,13 @@ async function loadBaseData() {
   }));
 }
 
-function allRecords() { return cachedRecords || []; }
+function allRecords() {
+  const base = cachedRecords || [];
+  const pending = JSON.parse(localStorage.getItem('gym_pending') || '[]');
+  if (!pending.length) return base;
+  // Merge Supabase data + locally pending data (not yet uploaded)
+  return [...base, ...pending];
+}
 
 async function saveLocal(records) {
   await ensureUser();
@@ -394,6 +454,7 @@ async function syncPending() {
       body: JSON.stringify(rows)
     });
     localStorage.removeItem('gym_pending');
+    cachedRecords = null; // force re-fetch so synced data appears
     showToast(`☁️ ${rows.length} series sincronizadas`);
   } catch(e) {}
 }
@@ -597,16 +658,6 @@ function loadProgress() {
 }
 
 // ─── ADD SESSION ─────────────────────────────────────────
-function updateExerciseOptions() {
-  const tipo = $('add-tipo').value;
-  const sel = $('add-exercise-select');
-  sel.innerHTML = '<option value="">Añadir ejercicio...</option>';
-  (EXERCISES_BY_TYPE[tipo] || []).forEach(ex => {
-    const o = document.createElement('option');
-    o.value = ex; o.textContent = ex;
-    sel.appendChild(o);
-  });
-}
 
 function getLastSeriesFor(ejercicio) {
   const all = allRecords();
@@ -617,9 +668,18 @@ function getLastSeriesFor(ejercicio) {
 }
 
 async function addExerciseEntry() {
-  const sel = $('add-exercise-select');
-  const ex = sel.value;
-  if (!ex) { showToast('Selecciona un ejercicio'); return; }
+  const tipoInput = $('add-tipo');
+  const exInput = $('add-exercise-input');
+  const tipo = tipoInput ? tipoInput.value.trim() : '';
+  const ex = exInput ? exInput.value.trim() : '';
+  if (!tipo) { showToast('Escribe el tipo de entrenamiento'); return; }
+  if (!ex) { showToast('Escribe el nombre del ejercicio'); return; }
+
+  // Persist new custom types/exercises to localStorage
+  saveCustomType(tipo);
+  saveCustomExercise(tipo, ex);
+  updateTipoSuggestions();
+  updateExerciseSuggestions();
 
   await loadBaseData();
   const lastSeries = getLastSeriesFor(ex);
@@ -656,7 +716,8 @@ async function addExerciseEntry() {
     addSetRow(id);
   }
 
-  sel.value = '';
+  exInput.value = '';
+  exInput.focus();
 }
 
 function addSetRow(entryId) {
@@ -759,6 +820,7 @@ async function saveSession() {
   await saveLocal(newRecords);
   showToast(`✓ Guardado ${newRecords.length} series`);
   $('exercise-entries').innerHTML = '';
+  if ($('add-exercise-input')) $('add-exercise-input').value = '';
 }
 
 function exportJSON() {
@@ -782,7 +844,8 @@ const today = new Date().toISOString().split('T')[0];
 // Show user name in nav once known
 if (userName) document.querySelector('nav h1').textContent = `Gym 💪 ${userName}`;
 $('add-date').value = today;
-loadBaseData().then(renderHome);
+updateTipoSuggestions(); // populate tipo datalist with defaults + saved custom types
+loadBaseData().then(() => { renderHome(); updateExerciseSuggestions(); });
 syncPending();
 
 if ('serviceWorker' in navigator) {
