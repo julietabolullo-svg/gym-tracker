@@ -94,6 +94,12 @@
     padding: 12px 14px; color: var(--text); font-size: 0.95rem;
     outline: none; -webkit-appearance: none; appearance: none;
   }
+  select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238b8b9e' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    padding-right: 36px;
+  }
   select:focus, input:focus { border-color: var(--accent); }
   label { display: block; font-size: 0.75rem; font-weight: 700; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .5px; }
   .add-section { margin-bottom: 18px; }
@@ -232,16 +238,25 @@
   </div>
   <div class="add-section">
     <label>Tipo de entrenamiento</label>
-    <input type="text" id="add-tipo" list="tipo-list" placeholder="Pierna – Femoral, Tren Superior..." oninput="updateExerciseSuggestions()" autocomplete="off">
-    <datalist id="tipo-list"></datalist>
+    <select id="add-tipo" onchange="handleTipoChange()">
+      <option value="">-- Selecciona tipo --</option>
+      <option value="Pierna – Femoral">Pierna – Femoral</option>
+      <option value="Pierna – Cuádriceps">Pierna – Cuádriceps</option>
+      <option value="Tren Superior">Tren Superior</option>
+      <option value="__otro__">Otro (personalizado)…</option>
+    </select>
+    <input type="text" id="add-tipo-custom" placeholder="Escribe el tipo..." autocomplete="off" style="display:none;margin-top:8px;">
   </div>
   <div class="add-section">
     <label>Ejercicios</label>
     <div class="add-exercise-bar">
-      <input type="text" id="add-exercise-input" list="exercise-list" placeholder="Nombre del ejercicio..." autocomplete="off">
-      <datalist id="exercise-list"></datalist>
+      <select id="add-exercise-input" style="flex:1;margin:0;">
+        <option value="">-- Selecciona ejercicio --</option>
+      </select>
       <button class="btn btn-primary btn-sm" onclick="addExerciseEntry()">+ Añadir</button>
     </div>
+    <input type="text" id="add-exercise-custom" placeholder="Nombre del ejercicio..." autocomplete="off" style="display:none;margin-top:8px;width:100%;">
+
     <div id="exercise-entries"></div>
   </div>
   <button class="btn btn-success btn-full" style="margin-top:8px;" onclick="saveSession()">✓ Guardar sesión</button>
@@ -298,28 +313,70 @@ function saveCustomExercise(tipo, ejercicio) {
   }
 }
 
+function getTipoValue() {
+  const sel = $('add-tipo');
+  if (!sel) return '';
+  if (sel.value === '__otro__') return ($('add-tipo-custom') || {}).value?.trim() || '';
+  return sel.value;
+}
+
+function getExerciseValue() {
+  const sel = $('add-exercise-input');
+  if (!sel) return '';
+  if (sel.value === '__otro__') return ($('add-exercise-custom') || {}).value?.trim() || '';
+  return sel.value;
+}
+
+function handleTipoChange() {
+  const sel = $('add-tipo');
+  const custom = $('add-tipo-custom');
+  if (sel.value === '__otro__') {
+    custom.style.display = '';
+    custom.focus();
+  } else {
+    custom.style.display = 'none';
+  }
+  updateExerciseSuggestions();
+}
+
 function updateTipoSuggestions() {
-  const list = document.getElementById('tipo-list');
-  if (!list) return;
-  list.innerHTML = '';
+  // keep select in sync with custom types
+  const sel = $('add-tipo');
+  if (!sel) return;
+  const existing = Array.from(sel.options).map(o => o.value);
   getAllTypes().forEach(t => {
-    const opt = document.createElement('option');
-    opt.value = t;
-    list.appendChild(opt);
+    if (!existing.includes(t)) {
+      const opt = document.createElement('option');
+      opt.value = t; opt.textContent = t;
+      sel.insertBefore(opt, sel.querySelector('option[value="__otro__"]'));
+    }
   });
 }
 
 function updateExerciseSuggestions() {
-  const tipo = ($('add-tipo') || {}).value?.trim() || '';
-  const list = document.getElementById('exercise-list');
-  if (!list) return;
-  list.innerHTML = '';
-  if (!tipo) return;
-  getExercisesForType(tipo).forEach(ex => {
-    const opt = document.createElement('option');
-    opt.value = ex;
-    list.appendChild(opt);
-  });
+  const tipo = getTipoValue();
+  const sel = $('add-exercise-input');
+  const customInput = $('add-exercise-custom');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">-- Selecciona ejercicio --</option>';
+  if (tipo) {
+    getExercisesForType(tipo).forEach(ex => {
+      const opt = document.createElement('option');
+      opt.value = ex; opt.textContent = ex;
+      sel.appendChild(opt);
+    });
+  }
+  const otro = document.createElement('option');
+  otro.value = '__otro__'; otro.textContent = 'Otro (personalizado)…';
+  sel.appendChild(otro);
+  sel.onchange = () => {
+    if (sel.value === '__otro__') {
+      customInput.style.display = '';
+      customInput.focus();
+    } else {
+      customInput.style.display = 'none';
+    }
+  };
 }
 
 // ─── SUPABASE CONFIG ─────────────────────────────────────
@@ -668,10 +725,8 @@ function getLastSeriesFor(ejercicio) {
 }
 
 async function addExerciseEntry() {
-  const tipoInput = $('add-tipo');
-  const exInput = $('add-exercise-input');
-  const tipo = tipoInput ? tipoInput.value.trim() : '';
-  const ex = exInput ? exInput.value.trim() : '';
+  const tipo = getTipoValue();
+  const ex = getExerciseValue();
   if (!tipo) { showToast('Escribe el tipo de entrenamiento'); return; }
   if (!ex) { showToast('Escribe el nombre del ejercicio'); return; }
 
@@ -796,7 +851,7 @@ function copyLastSession(entryId) {
 
 async function saveSession() {
   const fecha = $('add-date').value;
-  const tipo = $('add-tipo').value;
+  const tipo = getTipoValue();
   if (!fecha || !tipo) { showToast('Completa la fecha y el tipo'); return; }
 
   const newRecords = [];
@@ -820,7 +875,10 @@ async function saveSession() {
   await saveLocal(newRecords);
   showToast(`✓ Guardado ${newRecords.length} series`);
   $('exercise-entries').innerHTML = '';
-  if ($('add-exercise-input')) $('add-exercise-input').value = '';
+  const exSel = $('add-exercise-input');
+  if (exSel) { exSel.value = ''; }
+  const exCustom = $('add-exercise-custom');
+  if (exCustom) { exCustom.value = ''; exCustom.style.display = 'none'; }
 }
 
 function exportJSON() {
